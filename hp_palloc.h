@@ -7,15 +7,22 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
+#include <unistd.h>
 
 #define HP_MAX_ALLOC_FROM_POOL (4096 - 1)
 #define HP_POOL_ALIGNMENT 16
 #define hp_align_ptr(d, a) \
-  (u_char *) (((uintptr_t)(p) + ((uintptr_t)(a)-1)) & ~((uintptr_t)(a)-1)) 
+  (u_char *) (((uintptr_t)(d) + ((uintptr_t)(a)-1)) & ~((uintptr_t)(a)-1)) 
+#define hp_memzero(buf, n) memset((buf), 0, n)
+#define hp_close_file(fd) close(fd)
+#define hp_delete_file(name) unlink((const char *) (name))
 
 #define HP_ALIGNMENT sizeof(uintptr_t)
 #define HP_OK 0
 #define HP_DECLINED -5
+#define HP_FILE_ERROR -1
+#define HP_DEFAULT_POOL_SIZE 16 * 1024
 
 typedef unsigned char u_char;
 typedef struct hp_pool_s hp_pool_t;
@@ -68,6 +75,12 @@ void hp_destroy_pool(hp_pool_t *pool);
 void *hp_palloc(hp_pool_t *pool, size_t size);
 void *hp_pnalloc(hp_pool_t *pool, size_t size);
 
+
+hp_int_t hp_pfree(hp_pool_t *pool, void *p);
+void *hp_pcalloc(hp_pool_t *pool, size_t size);
+hp_pool_cleanup_t * hp_pool_cleanup_add(hp_pool_t *p , size_t size); 
+void hp_pool_cleanup_file(void *data);
+void *hp_pmemalign(hp_pool_t *pool, size_t size, size_t alignment);
 
 
 

@@ -2,10 +2,10 @@
  * Copyright (C) Sun Yuhang
  */
  
-#include <complex.h>
 #include <stdlib.h>
 #include "hp_palloc.h"
- 
+#include <stdio.h> 
+
 static inline void *
 hp_memalign(size_t alignment, size_t size) {
   void *p;
@@ -178,8 +178,7 @@ hp_palloc_large(hp_pool_t *pool, size_t size) {
   return p;
 }
 
-void *
-hp_pmemalign(hp_pool_t *pool, size_t size, size_t alignment)
+void *hp_pmemalign(hp_pool_t *pool, size_t size, size_t alignment)
 {
     void              *p;
     hp_pool_large_t  *large;
@@ -233,4 +232,83 @@ hp_pfree(hp_pool_t *pool, void *p)
     }
 
     return HP_DECLINED;
+}
+
+void *hp_pcalloc(hp_pool_t *pool, size_t size) {
+  void *p;
+  p = hp_palloc(pool, size);
+  
+  if (p) {
+    hp_memzero(p, size);
+  }
+
+  return p;
+}
+
+hp_pool_cleanup_t *
+hp_pool_cleanup_add(hp_pool_t *p , size_t size) {
+  hp_pool_cleanup_t *c;
+  
+  c = hp_palloc(p, sizeof(hp_pool_cleanup_t));
+  if (c == NULL) {
+    return NULL;
+  }
+  
+  if (size) {
+    c->data = hp_palloc(p, size);
+    if (c->data == NULL) {
+      return NULL;
+    }
+  } else {
+    c->data = NULL;
+  }
+
+  c->handler = NULL;
+  c->next = p->cleanup;
+  
+  p->cleanup = c;
+
+  return c;
+}
+
+void ngx_pool_run_cleanup_file(hp_pool_t *p, hp_fd_t fd) {
+    hp_pool_cleanup_t       *c;
+    hp_pool_cleanup_file_t  *cf;
+
+    for (c = p->cleanup; c; c = c->next) {
+        if (c->handler == hp_pool_cleanup_file) {
+
+            cf = c->data;
+
+            if (cf->fd == fd) {
+                c->handler(cf);
+                c->handler = NULL;
+                return;
+            }
+        }
+    }
+}
+
+void hp_pool_cleanup_file(void *data)
+{
+    hp_pool_cleanup_file_t  *c = data;
+
+    if (hp_close_file(c->fd) == HP_FILE_ERROR) {
+      fprintf(stderr, "hp_close_file failed\n");
+    }
+}
+
+
+void hp_pool_delete_file(void *data)
+{
+    hp_pool_cleanup_file_t  *c = data;
+
+
+    if (hp_delete_file(c->name) == HP_FILE_ERROR) {
+      fprintf(stderr, "hp_delete_file failed\n");
+    }
+
+    if (hp_close_file(c->fd) == HP_FILE_ERROR) {
+      fprintf(stderr, "hp_close_file failed\n"); 
+    }
 }
