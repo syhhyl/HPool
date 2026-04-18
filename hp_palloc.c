@@ -89,6 +89,8 @@ void hp_reset_pool(hp_pool_t *pool) {
   hp_pool_t *p;
   hp_pool_large_t *l;
 
+  pool->cleanup = NULL;
+
   for (l = pool->large; l; l = l->next) {
     if (l->alloc) {
       hp_free(l->alloc);
