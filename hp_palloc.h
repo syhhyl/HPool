@@ -1,7 +1,7 @@
 /*
  * Copyright (C) Sun Yuhang
  */
- 
+
 #ifndef _HP_PALLOC_H_INCLUDED_
 #define _HP_PALLOC_H_INCLUDED_
 
@@ -25,13 +25,13 @@
 #define HP_DEFAULT_POOL_SIZE 16 * 1024
 
 typedef unsigned char u_char;
-typedef struct hp_pool_s hp_pool_t;
-typedef uintptr_t hp_uint_t;
-typedef intptr_t hp_int_t;
 typedef void (*hp_pool_cleanup_pt)(void *data);
-typedef struct hp_pool_cleanup_s hp_pool_cleanup_t;
-typedef struct hp_pool_large_s hp_pool_large_t;
 typedef int hp_fd_t;
+typedef intptr_t hp_int_t;
+typedef uintptr_t hp_uint_t;
+typedef struct hp_pool_s hp_pool_t;
+typedef struct hp_pool_large_s hp_pool_large_t;
+typedef struct hp_pool_cleanup_s hp_pool_cleanup_t;
 
 
 struct hp_pool_large_s {
@@ -40,10 +40,10 @@ struct hp_pool_large_s {
 };
 
 typedef struct {
-    u_char *last;
-    u_char *end;
-    hp_pool_t *next;
-    hp_uint_t failed;
+  u_char *last;
+  u_char *end;
+  hp_pool_t *next;
+  hp_uint_t failed;
 } hp_pool_data_t;
 
 struct hp_pool_cleanup_s {
@@ -52,7 +52,7 @@ struct hp_pool_cleanup_s {
   void *data;
 };
 
-struct hp_pool_s{
+struct hp_pool_s {
   hp_pool_data_t d;
   size_t max;
   hp_pool_t *current;
@@ -60,30 +60,24 @@ struct hp_pool_s{
   hp_pool_cleanup_t *cleanup;
 };
 
-
-
 typedef struct {
   hp_fd_t fd;
   u_char *name;
 } hp_pool_cleanup_file_t;
 
-
-
 hp_pool_t *hp_create_pool(size_t size);
 void hp_destroy_pool(hp_pool_t *pool);
+void hp_reset_pool(hp_pool_t *pool);
 
 void *hp_palloc(hp_pool_t *pool, size_t size);
 void *hp_pnalloc(hp_pool_t *pool, size_t size);
-
-
-hp_int_t hp_pfree(hp_pool_t *pool, void *p);
 void *hp_pcalloc(hp_pool_t *pool, size_t size);
-hp_pool_cleanup_t * hp_pool_cleanup_add(hp_pool_t *p , size_t size); 
-void hp_pool_cleanup_file(void *data);
 void *hp_pmemalign(hp_pool_t *pool, size_t size, size_t alignment);
+hp_int_t hp_pfree(hp_pool_t *pool, void *p);
 
-
+hp_pool_cleanup_t *hp_pool_cleanup_add(hp_pool_t *p, size_t size);
+void hp_pool_run_cleanup_file(hp_pool_t *p, hp_fd_t fd);
+void hp_pool_cleanup_file(void *data);
+void hp_pool_delete_file(void *data);
 
 #endif
- 
-

@@ -1,6 +1,6 @@
-#include <stdio.h>
 #include "hp_palloc.h"
-#include <stdlib.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -8,6 +8,10 @@ typedef struct {
   const char *name;
   int age;
 } demo_user_t;
+
+static void print_section(const char *title) {
+  printf("\n== %s ==\n", title);
+}
 
 static void demo_cleanup(void *data) {
   const char *label = data;
@@ -23,37 +27,154 @@ static void write_text_file(int fd, const char *text) {
 }
 
 int main() {
+  char *msg1;
+  char *msg2;
+  int *numbers;
+  demo_user_t *user;
+  void *large;
+  void *aligned;
+  hp_pool_cleanup_t *cln;
+  hp_pool_cleanup_t *file_cln;
+  hp_pool_cleanup_t *delete_cln;
+  hp_pool_cleanup_file_t *file_data;
+  hp_pool_cleanup_file_t *delete_data;
+  char file_template[] = "/tmp/hp_pool_cleanup_XXXXXX";
+  char delete_template[] = "/tmp/hp_pool_delete_XXXXXX";
+  int file_fd;
+  int delete_fd;
   hp_pool_t *pool = hp_create_pool(HP_DEFAULT_POOL_SIZE);
   if (pool == NULL) {
     printf("create pool failed\n");
     return 1;
   }
-  
-  printf("[1] create pool ok\n");
-  printf("pool first addr: %p\n", pool);
 
-  char *msg1 = hp_palloc(pool, 64);
+  print_section("1. create pool");
+  printf("create pool ok\n");
+  printf("addr(pool): %p\n", pool);
+  printf("addr(current.last): %p\n", pool->current->d.last);
+  printf("addr(current.end): %p\n", pool->current->d.end);
+
+  print_section("2. small allocations");
+  msg1 = hp_palloc(pool, 50);
+  msg2 = hp_pnalloc(pool, 64);
+  numbers = hp_pcalloc(pool, 4 * sizeof(int));
+  user = hp_palloc(pool, sizeof(demo_user_t));
+
+  if (msg1 == NULL || msg2 == NULL || numbers == NULL || user == NULL) {
+    printf("small allocation failed\n");
+    hp_destroy_pool(pool);
+    return 1;
+  }
+
   printf("addr(msg1): %p\n", msg1);
-  printf("addr(pool+sizeof(hp_pool_data_t)): %p\n", (u_char *)pool+sizeof(hp_pool_data_t));
-  printf("addr(pool+sizeof(hp_pool_t)): %p\n", (u_char *)pool+sizeof(hp_pool_t));
-  // char *msg2 = hp_pnalloc(pool, 64);
-  // int *numbers = hp_palloc(pool, 5 * sizeof(int));
-  // demo_user_t *user = hp_palloc(pool, sizeof(demo_user_t));
-  // void *aligned = hp_pmemalign(pool, 128, 32);
-  
-  // if (msg1 == NULL || msg2 == NULL || numbers == NULL || user == NULL || aligned == NULL) {
-  //   printf("pool alloc failed\n");
-  //   hp_destroy_pool(pool);
-  //   return 1;
-  // }
-  
-  snprintf(msg1, 64, "I'am msg1 from hp_palloc");
-  
-  
-  printf("2) hp_palloc -> %s\n", msg1);
+  printf("addr(msg2): %p\n", msg2);
+  printf("addr(numbers): %p\n", numbers);
+  printf("addr(user): %p\n", user);
 
+  snprintf(msg1, 50, "I'am msg1 from hp_palloc");
+  snprintf(msg2, 64, "I'am msg2 from hp_pnalloc");
+  user->name = "hp_pool";
+  user->age = 26;
 
+  printf("hp_palloc  -> %s\n", msg1);
+  printf("hp_pnalloc -> %s\n", msg2);
+  printf("hp_pcalloc -> %d %d %d %d\n",
+         numbers[0], numbers[1], numbers[2], numbers[3]);
+  printf("struct alloc -> name=%s age=%d\n", user->name, user->age);
 
+  print_section("3. large allocations");
+  large = hp_palloc(pool, HP_MAX_ALLOC_FROM_POOL + 128);
+  aligned = hp_pmemalign(pool, 128, 32);
+  if (large == NULL || aligned == NULL) {
+    printf("large allocation failed\n");
+    hp_destroy_pool(pool);
+    return 1;
+  }
+
+  printf("hp_palloc(large) -> ptr=%p size=%d\n", large, HP_MAX_ALLOC_FROM_POOL + 128);
+  printf("hp_pmemalign -> ptr=%p ptr%%32=%lu\n",
+         aligned, (unsigned long) ((uintptr_t) aligned % 32));
+  printf("hp_pfree(large) -> %ld\n", (long) hp_pfree(pool, large));
+  printf("hp_pfree(aligned) -> %ld\n", (long) hp_pfree(pool, aligned));
+  printf("hp_pfree(msg1) -> %ld (small block cannot be individually freed)\n",
+         (long) hp_pfree(pool, msg1));
+
+  print_section("4. cleanup hooks");
+  cln = hp_pool_cleanup_add(pool, 0);
+  if (cln != NULL) {
+    cln->handler = demo_cleanup;
+    cln->data = "cleanup hook runs on destroy_pool";
+  }
+
+  file_fd = mkstemp(file_template);
+  if (file_fd == -1) {
+    printf("mkstemp for cleanup file failed\n");
+    hp_destroy_pool(pool);
+    return 1;
+  }
+
+  write_text_file(file_fd, "pool cleanup file\n");
+  file_cln = hp_pool_cleanup_add(pool, sizeof(hp_pool_cleanup_file_t));
+  if (file_cln == NULL) {
+    printf("add file cleanup failed\n");
+    close(file_fd);
+    hp_destroy_pool(pool);
+    return 1;
+  }
+
+  file_data = file_cln->data;
+  file_data->fd = file_fd;
+  file_data->name = (u_char *) file_template;
+  file_cln->handler = hp_pool_cleanup_file;
+
+  printf("run cleanup for fd=%d, path=%s\n", file_fd, file_template);
+  hp_pool_run_cleanup_file(pool, file_fd);
+  unlink(file_template);
+
+  delete_fd = mkstemp(delete_template);
+  if (delete_fd == -1) {
+    printf("mkstemp for delete file failed\n");
+    hp_destroy_pool(pool);
+    return 1;
+  }
+
+  write_text_file(delete_fd, "pool delete file\n");
+  delete_cln = hp_pool_cleanup_add(pool, sizeof(hp_pool_cleanup_file_t));
+  if (delete_cln == NULL) {
+    printf("add delete cleanup failed\n");
+    close(delete_fd);
+    unlink(delete_template);
+    hp_destroy_pool(pool);
+    return 1;
+  }
+
+  delete_data = delete_cln->data;
+  delete_data->fd = delete_fd;
+  delete_data->name = (u_char *) delete_template;
+  delete_cln->handler = hp_pool_delete_file;
+
+  printf("registered delete cleanup for path=%s\n", delete_template);
+
+  print_section("5. reset pool");
+  printf("reset pool and allocate again\n");
+  hp_reset_pool(pool);
+
+  msg1 = hp_palloc(pool, 32);
+  if (msg1 == NULL) {
+    printf("alloc after reset failed\n");
+    hp_destroy_pool(pool);
+    return 1;
+  }
+
+  snprintf(msg1, 32, "after reset");
+  printf("after reset -> %s\n", msg1);
+
+  print_section("6. destroy pool");
+  printf("destroy pool\n");
+  hp_destroy_pool(pool);
+
+  printf("delete file should now be removed: %s\n", delete_template);
+  printf("done\n");
 
   return 0;
 }
