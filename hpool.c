@@ -34,6 +34,7 @@ int main() {
 
   char *msg1 = hp_palloc(pool, 64);
   printf("addr(msg1): %p\n", msg1);
+  printf("addr(pool+sizeof(hp_pool_data_t)): %p\n", (u_char *)pool+sizeof(hp_pool_data_t));
   printf("addr(pool+sizeof(hp_pool_t)): %p\n", (u_char *)pool+sizeof(hp_pool_t));
   // char *msg2 = hp_pnalloc(pool, 64);
   // int *numbers = hp_palloc(pool, 5 * sizeof(int));

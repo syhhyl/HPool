@@ -25,7 +25,7 @@ hp_pool_t *hp_create_pool(size_t size) {
   p = hp_memalign(HP_POOL_ALIGNMENT, size);
   if (p == NULL) return NULL;
   
-  p->d.last = (u_char *)p + sizeof(hp_pool_data_t);
+  p->d.last = (u_char *)p + sizeof(hp_pool_t);
   p->d.end = (u_char *)p + size;
   p->d.next = NULL;
   p->d.failed = 0;
