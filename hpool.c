@@ -1,8 +1,14 @@
 #include "hp_palloc.h"
 #include <stdint.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>
+
+#ifdef _WIN32
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <windows.h>
+#endif
 
 typedef struct {
   const char *name;
@@ -18,10 +24,49 @@ static void demo_cleanup(void *data) {
   printf("generic cleanup: %s\n", label);
 }
 
+static int create_temp_file(char *path, size_t path_size, const char *prefix) {
+#ifdef _WIN32
+  char temp_dir[MAX_PATH];
+  char temp_name[MAX_PATH];
+  size_t name_len;
+  UINT dir_len;
+
+  dir_len = GetTempPathA((DWORD) sizeof(temp_dir), temp_dir);
+  if (dir_len == 0 || dir_len >= sizeof(temp_dir)) {
+    return -1;
+  }
+
+  if (GetTempFileNameA(temp_dir, prefix, 0, temp_name) == 0) {
+    return -1;
+  }
+
+  name_len = strlen(temp_name);
+  if (name_len + 1 > path_size) {
+    hp_delete_file((u_char *) temp_name);
+    return -1;
+  }
+
+  memcpy(path, temp_name, name_len + 1);
+
+  return _open(path, _O_RDWR | _O_BINARY, _S_IREAD | _S_IWRITE);
+#else
+  int written;
+
+  written = snprintf(path, path_size, "/tmp/%sXXXXXX", prefix);
+  if (written < 0 || (size_t) written >= path_size) {
+    return -1;
+  }
+
+  return mkstemp(path);
+#endif
+}
+
 static void write_text_file(int fd, const char *text) {
+  hp_int_t written;
   size_t len = strlen(text);
 
-  if (write(fd, text, len) != (ssize_t) len) {
+  written = hp_write(fd, text, len);
+  if (written < 0 || (size_t) written != len) {
     printf("write failed\n");
   }
 }
@@ -38,8 +83,8 @@ int main() {
   hp_pool_cleanup_t *delete_cln;
   hp_pool_cleanup_file_t *file_data;
   hp_pool_cleanup_file_t *delete_data;
-  char file_template[] = "/tmp/hp_pool_cleanup_XXXXXX";
-  char delete_template[] = "/tmp/hp_pool_delete_XXXXXX";
+  char file_template[512];
+  char delete_template[512];
   int file_fd;
   int delete_fd;
   hp_pool_t *pool = hp_create_pool(HP_DEFAULT_POOL_SIZE);
@@ -106,9 +151,9 @@ int main() {
     cln->data = "cleanup hook runs on destroy_pool";
   }
 
-  file_fd = mkstemp(file_template);
+  file_fd = create_temp_file(file_template, sizeof(file_template), "hpc");
   if (file_fd == -1) {
-    printf("mkstemp for cleanup file failed\n");
+    printf("create cleanup file failed\n");
     hp_destroy_pool(pool);
     return 1;
   }
@@ -117,7 +162,7 @@ int main() {
   file_cln = hp_pool_cleanup_add(pool, sizeof(hp_pool_cleanup_file_t));
   if (file_cln == NULL) {
     printf("add file cleanup failed\n");
-    close(file_fd);
+    hp_close_file(file_fd);
     hp_destroy_pool(pool);
     return 1;
   }
@@ -129,11 +174,11 @@ int main() {
 
   printf("run cleanup for fd=%d, path=%s\n", file_fd, file_template);
   hp_pool_run_cleanup_file(pool, file_fd);
-  unlink(file_template);
+  hp_delete_file((u_char *) file_template);
 
-  delete_fd = mkstemp(delete_template);
+  delete_fd = create_temp_file(delete_template, sizeof(delete_template), "hpd");
   if (delete_fd == -1) {
-    printf("mkstemp for delete file failed\n");
+    printf("create delete file failed\n");
     hp_destroy_pool(pool);
     return 1;
   }
@@ -142,8 +187,8 @@ int main() {
   delete_cln = hp_pool_cleanup_add(pool, sizeof(hp_pool_cleanup_file_t));
   if (delete_cln == NULL) {
     printf("add delete cleanup failed\n");
-    close(delete_fd);
-    unlink(delete_template);
+    hp_close_file(delete_fd);
+    hp_delete_file((u_char *) delete_template);
     hp_destroy_pool(pool);
     return 1;
   }

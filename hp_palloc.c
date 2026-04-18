@@ -8,15 +8,35 @@
 #include <stdlib.h>
 
 static inline void *hp_memalign(size_t alignment, size_t size) {
-  void *p;
+  void *base;
+  void **aligned;
+  size_t total;
+  uintptr_t addr;
 
-  if (posix_memalign(&p, alignment, size) != 0) return NULL;
+  if ((alignment & (alignment - 1)) != 0) {
+    return NULL;
+  }
 
-  return p;
+  if (alignment < sizeof(void *)) {
+    alignment = sizeof(void *);
+  }
+
+  total = size + alignment - 1 + sizeof(void *);
+  base = malloc(total);
+  if (base == NULL) return NULL;
+
+  addr = (uintptr_t) base + sizeof(void *);
+  addr = (addr + alignment - 1) & ~((uintptr_t) alignment - 1);
+  aligned = (void **) addr;
+  aligned[-1] = base;
+
+  return aligned;
 }
 
 static inline void hp_free(void *p) {
-  free(p);
+  if (p == NULL) return;
+
+  free(((void **) p)[-1]);
 }
 
 hp_pool_t *hp_create_pool(size_t size) {
@@ -137,7 +157,7 @@ static inline void *hp_palloc_small(hp_pool_t *pool, size_t size, hp_uint_t alig
 }
 
 static inline void *hp_alloc(size_t size) {
-  return malloc(size);
+  return hp_memalign(HP_ALIGNMENT, size);
 }
 
 static void *hp_palloc_large(hp_pool_t *pool, size_t size) {
@@ -289,11 +309,11 @@ void hp_pool_cleanup_file(void *data) {
 void hp_pool_delete_file(void *data) {
   hp_pool_cleanup_file_t *c = data;
 
-  if (hp_delete_file(c->name) == HP_FILE_ERROR) {
-    fprintf(stderr, "hp_delete_file failed\n");
-  }
-
   if (hp_close_file(c->fd) == HP_FILE_ERROR) {
     fprintf(stderr, "hp_close_file failed\n");
+  }
+
+  if (hp_delete_file(c->name) == HP_FILE_ERROR) {
+    fprintf(stderr, "hp_delete_file failed\n");
   }
 }

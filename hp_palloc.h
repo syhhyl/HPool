@@ -8,15 +8,27 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+
+#ifdef _WIN32
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
 
 #define HP_MAX_ALLOC_FROM_POOL (4096 - 1)
 #define HP_POOL_ALIGNMENT 16
 #define hp_align_ptr(d, a) \
   (u_char *) (((uintptr_t)(d) + ((uintptr_t)(a)-1)) & ~((uintptr_t)(a)-1)) 
 #define hp_memzero(buf, n) memset((buf), 0, n)
+#ifdef _WIN32
+#define hp_close_file(fd) _close(fd)
+#define hp_delete_file(name) _unlink((const char *) (name))
+#define hp_write(fd, buf, n) _write((fd), (buf), (unsigned int) (n))
+#else
 #define hp_close_file(fd) close(fd)
 #define hp_delete_file(name) unlink((const char *) (name))
+#define hp_write(fd, buf, n) write((fd), (buf), (n))
+#endif
 
 #define HP_ALIGNMENT sizeof(uintptr_t)
 #define HP_OK 0
