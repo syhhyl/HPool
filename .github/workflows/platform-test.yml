@@ -1,0 +1,92 @@
+name: Platform Test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  unix-build:
+    name: ${{ matrix.os }} / ${{ matrix.compiler }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            compiler: gcc
+            cc: gcc
+          - os: ubuntu-latest
+            compiler: clang
+            cc: clang
+          - os: macos-latest
+            compiler: clang
+            cc: clang
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: ${{ matrix.cc }} -Wall -Wextra hp_palloc.c hpool.c -o hpool
+
+      - name: Run demo
+        run: ./hpool
+
+  windows-msvc:
+    name: windows-latest / msvc
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Build
+        shell: cmd
+        run: cl /W4 hp_palloc.c hpool.c /Fe:hpool.exe
+
+      - name: Run demo
+        shell: cmd
+        run: hpool.exe
+
+  windows-clang:
+    name: windows-latest / clang-cl
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Build
+        shell: cmd
+        run: clang-cl /W4 hp_palloc.c hpool.c /Fe:hpool.exe
+
+      - name: Run demo
+        shell: cmd
+        run: hpool.exe
+
+  windows-mingw-clang:
+    name: windows-latest / mingw-clang
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: CLANG64
+          update: true
+          install: >-
+            mingw-w64-clang-x86_64-clang
+
+      - name: Build
+        shell: msys2 {0}
+        run: clang -Wall -Wextra hp_palloc.c hpool.c -o hpool.exe
+
+      - name: Run demo
+        shell: msys2 {0}
+        run: ./hpool.exe
