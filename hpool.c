@@ -88,8 +88,12 @@ int main() {
 
   snprintf(msg1, 50, "I'am msg1 from hp_palloc");
   snprintf(msg2, 64, "I'am msg2 from hp_pnalloc");
+  for (int i = 0; i < 4; ++i) {
+    numbers[i] = i + 2;
+  }
   user->name = "hp_pool";
   user->age = 26;
+  
 
   printf("hp_palloc  -> %s\n", msg1);
   printf("hp_pnalloc -> %s\n", msg2);
@@ -143,7 +147,7 @@ int main() {
 
   printf("run cleanup for fd=%d, path=%s\n", file_fd, file_template);
   hp_pool_run_cleanup_file(pool, file_fd);
-  hp_delete_file((u_char *) file_template);
+  // hp_delete_file((u_char *) file_template);
 
   delete_fd = create_temp_file(delete_template, sizeof(delete_template), "hpd");
   if (delete_fd == -1) {
