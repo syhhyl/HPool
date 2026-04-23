@@ -50,7 +50,6 @@ int main() {
   hp_pool_cleanup_t *cln;
   hp_pool_cleanup_t *file_cln;
   hp_pool_cleanup_t *delete_cln;
-  hp_pool_cleanup_file_t *file_data;
   hp_pool_cleanup_file_t *delete_data;
   char file_template[512];
   char delete_template[512];
@@ -138,9 +137,8 @@ int main() {
     return 1;
   }
 
-  file_data = file_cln->data;
-  file_data->fd = file_fd;
-  file_data->name = (u_char *) file_template;
+  ((hp_pool_cleanup_file_t *)file_cln->data)->fd = file_fd;
+  ((hp_pool_cleanup_file_t *)file_cln->data)->name = (u_char *)file_template;
   file_cln->handler = hp_pool_cleanup_file;
 
   printf("run cleanup for fd=%d, path=%s\n", file_fd, file_template);
