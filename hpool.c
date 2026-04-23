@@ -4,11 +4,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#ifdef _WIN32
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <windows.h>
-#endif
 
 typedef struct {
   const char *name;
@@ -25,31 +20,6 @@ static void demo_cleanup(void *data) {
 }
 
 static int create_temp_file(char *path, size_t path_size, const char *prefix) {
-#ifdef _WIN32
-  char temp_dir[MAX_PATH];
-  char temp_name[MAX_PATH];
-  size_t name_len;
-  UINT dir_len;
-
-  dir_len = GetTempPathA((DWORD) sizeof(temp_dir), temp_dir);
-  if (dir_len == 0 || dir_len >= sizeof(temp_dir)) {
-    return -1;
-  }
-
-  if (GetTempFileNameA(temp_dir, prefix, 0, temp_name) == 0) {
-    return -1;
-  }
-
-  name_len = strlen(temp_name);
-  if (name_len + 1 > path_size) {
-    hp_delete_file((u_char *) temp_name);
-    return -1;
-  }
-
-  memcpy(path, temp_name, name_len + 1);
-
-  return _open(path, _O_RDWR | _O_BINARY, _S_IREAD | _S_IWRITE);
-#else
   int written;
 
   written = snprintf(path, path_size, "/tmp/%sXXXXXX", prefix);
@@ -58,7 +28,6 @@ static int create_temp_file(char *path, size_t path_size, const char *prefix) {
   }
 
   return mkstemp(path);
-#endif
 }
 
 static void write_text_file(int fd, const char *text) {
@@ -87,6 +56,8 @@ int main() {
   char delete_template[512];
   int file_fd;
   int delete_fd;
+
+
   hp_pool_t *pool = hp_create_pool(HP_DEFAULT_POOL_SIZE);
   if (pool == NULL) {
     printf("create pool failed\n");
