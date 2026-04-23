@@ -85,11 +85,20 @@ void hp_destroy_pool(hp_pool_t *pool) {
   }
 }
 
-void hp_reset_pool(hp_pool_t *pool) {
+void hp_reset_pool(hp_pool_t *pool, int clean) {
   hp_pool_t *p;
   hp_pool_large_t *l;
+  hp_pool_cleanup_t *c;
+  
 
-  pool->cleanup = NULL;
+  if (clean) {
+    for (c = pool->cleanup; c; c = c->next) {
+      if (c->handler) {
+        c->handler(c->data);
+      }
+    }
+    pool->cleanup = NULL;
+  }
 
   for (l = pool->large; l; l = l->next) {
     if (l->alloc) {

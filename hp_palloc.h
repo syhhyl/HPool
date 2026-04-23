@@ -79,11 +79,12 @@ typedef struct {
 
 hp_pool_t *hp_create_pool(size_t size);
 void hp_destroy_pool(hp_pool_t *pool);
-void hp_reset_pool(hp_pool_t *pool);
+void hp_reset_pool(hp_pool_t *pool, int clean);
 
 void *hp_palloc(hp_pool_t *pool, size_t size);
 void *hp_pnalloc(hp_pool_t *pool, size_t size);
 void *hp_pcalloc(hp_pool_t *pool, size_t size);
+
 void *hp_pmemalign(hp_pool_t *pool, size_t size, size_t alignment);
 hp_int_t hp_pfree(hp_pool_t *pool, void *p);
 

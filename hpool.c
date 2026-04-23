@@ -148,7 +148,7 @@ int main() {
   cln = hp_pool_cleanup_add(pool, 0);
   if (cln != NULL) {
     cln->handler = demo_cleanup;
-    cln->data = "cleanup hook runs on destroy_pool";
+    cln->data = "cleanup hook runs on destroy_pool | reset_pool";
   }
 
   file_fd = create_temp_file(file_template, sizeof(file_template), "hpc");
@@ -202,16 +202,18 @@ int main() {
 
   print_section("5. reset pool");
   printf("reset pool and allocate again\n");
-  hp_reset_pool(pool);
+  hp_reset_pool(pool, 0);
 
   msg1 = hp_palloc(pool, 32);
+  
   if (msg1 == NULL) {
     printf("alloc after reset failed\n");
     hp_destroy_pool(pool);
     return 1;
   }
+  printf("addr(msg1): %p\n", msg1);
 
-  snprintf(msg1, 32, "after reset");
+  snprintf(msg1, 32, "I am msg1 from after reset pool");
   printf("after reset -> %s\n", msg1);
 
   print_section("6. destroy pool");
